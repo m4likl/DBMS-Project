@@ -1,0 +1,18 @@
+# Compiled binaries
+nitcbase
+XFS_Interface/xfs-interface
+
+# Object files & Build folders
+build/
+*.o
+*.a
+
+# Virtual Disk Files (large binary files generated during testing)
+Disk/disk.xfs
+XFS_Interface/disk.xfs
+*.xfs
+
+# Editor / System files
+.vscode/
+.idea/
+.DS_Store
