@@ -1,38 +1,14 @@
-#include "Disk_Class/Disk.h"
 #include "Buffer/StaticBuffer.h"
 #include "Cache/OpenRelTable.h"
-#include "Cache/RelCacheTable.h"
-#include "Cache/AttrCacheTable.h"
-#include "define/constants.h"
-#include <cstdio>
+#include "Disk_Class/Disk.h"
+#include "FrontendInterface/FrontendInterface.h" // Add this line!
 #include <iostream>
-
-
 int main(int argc, char *argv[]) {
   Disk disk_run;
   StaticBuffer buffer;
   OpenRelTable cache;
 
-  // Iterate over relId 0 (RELCAT), 1 (ATTRCAT), and 2 (Students)
-  for (int i = 0; i <= 2; i++) {
-    
-    RelCatEntry relCatEntry;
-    RelCacheTable::getRelCatEntry(i, &relCatEntry);
-
-    printf("Relation: %s\n", relCatEntry.relName);
-
-    for (int j = 0; j < relCatEntry.numAttrs; j++) {
-      AttrCatEntry attrCatEntry;
-      AttrCacheTable::getAttrCatEntry(i, j, &attrCatEntry);
-
-      const char *attrType = (attrCatEntry.attrType == NUMBER) ? "NUM" : "STR";
-
-      printf("  %s: %s\n", attrCatEntry.attrName, attrType);
-    }
-    printf("\n");
-  }
-  
-  return 0;
+  return FrontendInterface::handleFrontend(argc, argv);
 }
 
 /*
@@ -89,4 +65,4 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 */
-/*
+

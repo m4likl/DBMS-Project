@@ -1,27 +1,28 @@
 #include "StaticBuffer.h"
 
-
 // The static member arrays must be explicitly defined here
 unsigned char StaticBuffer::blocks[BUFFER_CAPACITY][BLOCK_SIZE];
 struct BufferMetaInfo StaticBuffer::metainfo[BUFFER_CAPACITY];
 
 StaticBuffer::StaticBuffer() {
-  // initialise all blocks as free
- 
+  // Initialize all blocks as free
+  for (int bufferIndex = 0; bufferIndex < BUFFER_CAPACITY; bufferIndex++) {
+    metainfo[bufferIndex].free = true;
+    metainfo[bufferIndex].dirty = false;
+    metainfo[bufferIndex].timeStamp = -1;
+    metainfo[bufferIndex].blockNum = -1;
+  }
 }
 
 /*
 At this stage, we are not writing back from the buffer to the disk since we are
 not modifying the buffer. So, we will define an empty destructor for now. In
-subsequent stag for (int bufferIndex = 0; bufferIndex < BUFFER_CAPACITY; bufferIndex++) {
-    metainfo[bufferIndex].free = true;
-  }es, we will implement the write-back functionality here.
+subsequent stages, we will implement the write-back functionality here.
 */
 StaticBuffer::~StaticBuffer() {}
 
 int StaticBuffer::getFreeBuffer(int blockNum) {
   // Check if blockNum is valid
-  // Note: DISK_BLOCKS is the total number of blocks, so valid indices are 0 to DISK_BLOCKS - 1
   if (blockNum < 0 || blockNum >= DISK_BLOCKS) {
     return E_OUTOFBOUND;
   }
@@ -37,6 +38,11 @@ int StaticBuffer::getFreeBuffer(int blockNum) {
     }
   }
 
+  // Check if no free buffer was found
+  if (allocatedBuffer == -1) {
+    return E_OUTOFBOUND; // Or a specific error like E_OUTOFMEMORY
+  }
+
   // assign allocatedBuffer = index of the free block
   metainfo[allocatedBuffer].free = false;
   metainfo[allocatedBuffer].blockNum = blockNum;
@@ -44,17 +50,17 @@ int StaticBuffer::getFreeBuffer(int blockNum) {
   return allocatedBuffer;
 }
 
+
 /* Get the buffer index where a particular block is stored
    or E_BLOCKNOTINBUFFER otherwise
 */
 int StaticBuffer::getBufferNum(int blockNum) {
   // Check if blockNum is valid (between zero and DISK_BLOCKS - 1)
-  // and return E_OUTOFBOUND if not valid.
   if (blockNum < 0 || blockNum >= DISK_BLOCKS) {
     return E_OUTOFBOUND;
   }
 
-  // find and return the bufferIndex which corresponds to blockNum (check metainfo)
+  // find and return the bufferIndex which corresponds to blockNum
   for (int i = 0; i < BUFFER_CAPACITY; i++) {
     if (metainfo[i].free == false && metainfo[i].blockNum == blockNum) {
       return i;
