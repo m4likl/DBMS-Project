@@ -1,6 +1,7 @@
 #include "RelCacheTable.h"
 #include <cstring>
-
+// THE SERACH INDEX IS UPDATED AND STORED USING RELCACHE
+// RELATION INFO IS RETURNED WHEN REQUESTED BY BLOCKACCESS LAYER
 RelCacheEntry* RelCacheTable::relCache[MAX_OPEN];
 
 void RelCacheTable::recordToRelCatEntry(union Attribute record[RELCAT_NO_ATTRS], RelCatEntry* relCatEntry) {

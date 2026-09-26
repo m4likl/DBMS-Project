@@ -1,6 +1,6 @@
 #include "AttrCacheTable.h"
 #include <cstring>
-
+// RETURN ATTRIBUTE AND OFFSET NEEDED FOR THE SELECT FUNCTIONS NEEED
 AttrCacheEntry* AttrCacheTable::attrCache[MAX_OPEN];
 
 void AttrCacheTable::recordToAttrCatEntry(union Attribute record[ATTRCAT_NO_ATTRS], AttrCatEntry* attrCatEntry) {
