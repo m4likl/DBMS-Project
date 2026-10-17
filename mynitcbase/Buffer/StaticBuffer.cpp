@@ -1,10 +1,18 @@
 #include "StaticBuffer.h"
 
+// Static member definitions
 unsigned char StaticBuffer::blocks[BUFFER_CAPACITY][BLOCK_SIZE];
 struct BufferMetaInfo StaticBuffer::metainfo[BUFFER_CAPACITY];
+unsigned char StaticBuffer::blockAllocMap[DISK_BLOCKS];
 
-// Constructor: Initializes the buffer metadata
+// Constructor: Initializes blockAllocMap and buffer metadata
 StaticBuffer::StaticBuffer() {
+    // 1. Read blockAllocMap (disk blocks 0 to 3) into the in-memory array
+    for (int i = 0; i < 4; i++) {
+        Disk::readBlock(StaticBuffer::blockAllocMap + (i * BLOCK_SIZE), i);
+    }
+
+    // 2. Initialize metainfo array for all buffer slots
     for (int bufferIndex = 0; bufferIndex < BUFFER_CAPACITY; bufferIndex++) {
         metainfo[bufferIndex].free = true;
         metainfo[bufferIndex].dirty = false;
@@ -13,8 +21,14 @@ StaticBuffer::StaticBuffer() {
     }
 }
 
-// Destructor: Flushes all modified (dirty) blocks to the disk on shutdown
+// Destructor: Flushes blockAllocMap and modified buffer blocks to disk
 StaticBuffer::~StaticBuffer() {
+    // 1. Write the in-memory blockAllocMap back to disk blocks 0 to 3
+    for (int i = 0; i < 4; i++) {
+        Disk::writeBlock(StaticBuffer::blockAllocMap + (i * BLOCK_SIZE), i);
+    }
+
+    // 2. Flush dirty blocks in buffer pool back to disk
     for (int bufferIndex = 0; bufferIndex < BUFFER_CAPACITY; bufferIndex++) {
         if (!metainfo[bufferIndex].free && metainfo[bufferIndex].dirty) {
             Disk::writeBlock(blocks[bufferIndex], metainfo[bufferIndex].blockNum);
@@ -40,7 +54,7 @@ int StaticBuffer::getFreeBuffer(int blockNum) {
         return E_OUTOFBOUND;
     }
 
-    // Increase the timeStamp in metaInfo of all occupied buffers
+    // Increase the timestamp in metaInfo of all occupied buffers
     for (int i = 0; i < BUFFER_CAPACITY; i++) {
         if (!metainfo[i].free) {
             metainfo[i].timeStamp++;
@@ -57,7 +71,7 @@ int StaticBuffer::getFreeBuffer(int blockNum) {
         }
     }
 
-    // If no free buffer is available, find the least recently used (LRU) buffer block
+    // If no free buffer is available, find the least recently used (LRU) buffer slot
     if (bufferNum == -1) {
         int maxTimeStamp = -1;
         int lruBufferIndex = -1;
