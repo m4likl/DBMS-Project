@@ -80,30 +80,6 @@ OpenRelTable::OpenRelTable() {
     strcpy(tableMetaInfo[ATTRCAT_RELID].relName, ATTRCAT_RELNAME);
 }
 
-OpenRelTable::~OpenRelTable() {
-    // close all open relations (from rel-id = 2 onwards)
-    for (int i = 2; i < MAX_OPEN; ++i) {
-        if (!tableMetaInfo[i].free) {
-            OpenRelTable::closeRel(i);
-        }
-    }
-
-    // free the memory allocated for rel-id 0 and 1 in the caches
-    // Write-back is not needed for catalogs in this stage
-    for (int i = 0; i < 2; ++i) {
-        if (RelCacheTable::relCache[i] != nullptr) {
-            delete RelCacheTable::relCache[i];
-            RelCacheTable::relCache[i] = nullptr;
-        }
-        AttrCacheEntry* curr = AttrCacheTable::attrCache[i];
-        while (curr != nullptr) {
-            AttrCacheEntry* next = curr->next;
-            delete curr;
-            curr = next;
-        }
-        AttrCacheTable::attrCache[i] = nullptr;
-    }
-}
 
 int OpenRelTable::getFreeOpenRelTableEntry() {
     for (int i = 0; i < MAX_OPEN; ++i) {
@@ -237,4 +213,40 @@ int OpenRelTable::closeRel(int relId) {
     tableMetaInfo[relId].free = true;
 
     return SUCCESS;
+}
+//---------------------------------stage 7----------------------------
+OpenRelTable::~OpenRelTable() {
+    // close every non-catalog relation that is still open
+    for (int i = 2; i < MAX_OPEN; ++i) {
+        if (!tableMetaInfo[i].free) {
+            OpenRelTable::closeRel(i);
+        }
+    }
+
+    // write back (if modified) and free the catalogs' relation cache entries
+    for (int relId = ATTRCAT_RELID; relId >= RELCAT_RELID; relId--) {
+        RelCacheEntry *entry = RelCacheTable::relCache[relId];
+        if (entry != nullptr) {
+            if (entry->dirty) {
+                Attribute relCatRecord[RELCAT_NO_ATTRS];
+                RelCacheTable::relCatEntryToRecord(&(entry->relCatEntry), relCatRecord);
+
+                RecBuffer relCatBlock(entry->recId.block);
+                relCatBlock.setRecord(relCatRecord, entry->recId.slot);
+            }
+            delete entry;
+            RelCacheTable::relCache[relId] = nullptr;
+        }
+    }
+
+    // free the attribute cache lists of both catalogs
+    for (int relId = RELCAT_RELID; relId <= ATTRCAT_RELID; relId++) {
+        AttrCacheEntry *curr = AttrCacheTable::attrCache[relId];
+        while (curr != nullptr) {
+            AttrCacheEntry *next = curr->next;
+            delete curr;
+            curr = next;
+        }
+        AttrCacheTable::attrCache[relId] = nullptr;
+    }
 }

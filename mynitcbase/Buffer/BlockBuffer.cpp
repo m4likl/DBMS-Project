@@ -234,3 +234,22 @@ int compareAttrs(union Attribute attr1, union Attribute attr2, int attrType) {
   if (diff > 0) return 1;
   return 0;
 }
+//----------------------------------------stage 7------------------------------
+void BlockBuffer::releaseBlock() {
+  // nothing to do if this object is not associated with a valid block
+  if (blockNum == INVALID_BLOCKNUM) {
+    return;
+  }
+
+  // if the block is currently loaded in the buffer, mark that buffer slot as free
+  int bufferNum = StaticBuffer::getBufferNum(blockNum);
+  if (bufferNum != E_BLOCKNOTINBUFFER) {
+    StaticBuffer::metainfo[bufferNum].free = true;
+  }
+
+  // mark the block as unused in the block allocation map
+  StaticBuffer::blockAllocMap[blockNum] = UNUSED_BLK;
+
+  // invalidate this object
+  this->blockNum = INVALID_BLOCKNUM;
+}

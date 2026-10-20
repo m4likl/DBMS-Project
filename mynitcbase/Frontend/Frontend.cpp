@@ -5,13 +5,12 @@
 
 int Frontend::create_table(char relname[ATTR_SIZE], int no_attrs, char attributes[][ATTR_SIZE],
                            int type_attrs[]) {
-  // Schema::createRel
-  return SUCCESS;
+  return Schema::createRel(relname, no_attrs, attributes, type_attrs);
 }
 
 int Frontend::drop_table(char relname[ATTR_SIZE]) {
   // Schema::deleteRel
-  return SUCCESS;
+  return Schema::deleteRel(relname);
 }
 
 int Frontend::open_table(char relname[ATTR_SIZE]) {
@@ -50,25 +49,15 @@ int Frontend::insert_into_table_values(char relname[ATTR_SIZE], int attr_count, 
 }
 
 int Frontend::select_from_table(char relname_source[ATTR_SIZE], char relname_target[ATTR_SIZE]) {
-  // Algebra::project
-  return SUCCESS;
+    return Algebra::project(relname_source, relname_target);
 }
 
 int Frontend::select_attrlist_from_table(char relname_source[ATTR_SIZE], char relname_target[ATTR_SIZE],
                                          int attr_count, char attr_list[][ATTR_SIZE]) {
-  // Algebra::project
-  return SUCCESS;
+    return Algebra::project(relname_source, relname_target, attr_count, attr_list);
 }
 
 
-/*
-int Frontend::select_from_table_where(char relname_source[ATTR_SIZE], char relname_target[ATTR_SIZE],
-                                      char attribute[ATTR_SIZE], int op, char value[ATTR_SIZE]) {
-  // Algebra::select
-  return SUCCESS;
-}
-*/
-//return function changed here 
 int Frontend::select_from_table_where(char relname_source[ATTR_SIZE], char relname_target[ATTR_SIZE],
                                       char attribute[ATTR_SIZE], int op, char value[ATTR_SIZE]) {
   return Algebra::select(relname_source, relname_target, attribute, op, value);
@@ -79,8 +68,31 @@ int Frontend::select_from_table_where(char relname_source[ATTR_SIZE], char relna
 int Frontend::select_attrlist_from_table_where(char relname_source[ATTR_SIZE], char relname_target[ATTR_SIZE],
                                                int attr_count, char attr_list[][ATTR_SIZE],
                                                char attribute[ATTR_SIZE], int op, char value[ATTR_SIZE]) {
-  // Algebra::select + Algebra::project??
-  return SUCCESS;
+    // temporary relation name (copied into a char array to avoid string-literal-to-char* warnings)
+  char temp[ATTR_SIZE];
+  strcpy(temp, TEMP);
+
+  // step 1: select into the temporary relation (it has all attributes of the source)
+  int ret = Algebra::select(relname_source, temp, attribute, op, value);
+  if (ret != SUCCESS) {
+    return ret;
+  }
+
+  // step 2: open the temporary relation
+  int tempRelId = OpenRelTable::openRel(temp);
+  if (tempRelId < 0 || tempRelId >= MAX_OPEN) {
+    Schema::deleteRel(temp);
+    return tempRelId;
+  }
+
+  // step 3: project the requested attributes from it into the real target relation
+  ret = Algebra::project(temp, relname_target, attr_count, attr_list);
+
+  // step 4: clean up the temporary relation, whether or not project() succeeded
+  OpenRelTable::closeRel(tempRelId);
+  Schema::deleteRel(temp);
+
+  return ret;
 }
 
 int Frontend::select_from_join_where(char relname_source_one[ATTR_SIZE], char relname_source_two[ATTR_SIZE],
