@@ -49,6 +49,8 @@ OpenRelTable::OpenRelTable() {
         AttrCacheTable::recordToAttrCatEntry(attrCatRecord, &(entry->attrCatEntry));
         entry->recId = RecId{ATTRCAT_BLOCK, slot};
         entry->dirty = false;
+        entry->searchIndex.block = -1;   // NEW
+        entry->searchIndex.index = -1;   // NEW
         entry->next = nullptr;
         if (head == nullptr) { head = entry; tail = entry; } 
         else { tail->next = entry; tail = entry; }
@@ -66,6 +68,8 @@ OpenRelTable::OpenRelTable() {
         AttrCacheTable::recordToAttrCatEntry(attrCatRecord, &(entry->attrCatEntry));
         entry->recId = RecId{ATTRCAT_BLOCK, slot};
         entry->dirty = false;
+        entry->searchIndex.block = -1;   // NEW
+        entry->searchIndex.index = -1;   // NEW
         entry->next = nullptr;
         if (head == nullptr) { head = entry; tail = entry; } 
         else { tail->next = entry; tail = entry; }
@@ -155,6 +159,8 @@ int OpenRelTable::openRel(char relName[ATTR_SIZE]) {
         AttrCacheTable::recordToAttrCatEntry(attrCatRecord, &(attrCacheEntry->attrCatEntry));
         attrCacheEntry->recId = attrcatRecId;
         attrCacheEntry->dirty = false;
+        attrCacheEntry->searchIndex.block = -1;   // NEW
+        attrCacheEntry->searchIndex.index = -1;   // NEW
         attrCacheEntry->next = nullptr;
 
         if (head == nullptr) {

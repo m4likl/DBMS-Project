@@ -40,6 +40,33 @@ int Algebra::select(char srcRel[ATTR_SIZE], char targetRel[ATTR_SIZE], char attr
     strcpy(attrVal.sVal, strVal);
   }
 
+  // target "null" means: print the matching records instead of creating a relation
+  if (strcmp(targetRel, "null") == 0) {
+    RelCatEntry srcEntry;
+    RelCacheTable::getRelCatEntry(srcRelId, &srcEntry);
+    int nAttrs = srcEntry.numAttrs;
+
+    int types[nAttrs];
+    for (int i = 0; i < nAttrs; i++) {
+      AttrCatEntry e;
+      AttrCacheTable::getAttrCatEntry(srcRelId, i, &e);
+      types[i] = e.attrType;
+      printf("%s%s", e.attrName, i < nAttrs - 1 ? " | " : "\n");
+    }
+
+    RelCacheTable::resetSearchIndex(srcRelId);
+    AttrCacheTable::resetSearchIndex(srcRelId, attr);
+    Attribute rec[nAttrs];
+    while (BlockAccess::search(srcRelId, rec, attr, attrVal, op) == SUCCESS) {
+      for (int i = 0; i < nAttrs; i++) {
+        if (types[i] == NUMBER) printf("%d", (int)rec[i].nVal);
+        else printf("%s", rec[i].sVal);
+        printf("%s", i < nAttrs - 1 ? " | " : "\n");
+      }
+    }
+    return SUCCESS;
+  }
+
   /*** create and open the target relation ***/
   RelCatEntry relCatEntry;
   RelCacheTable::getRelCatEntry(srcRelId, &relCatEntry);
@@ -47,7 +74,7 @@ int Algebra::select(char srcRel[ATTR_SIZE], char targetRel[ATTR_SIZE], char attr
 
   char attr_names[src_nAttrs][ATTR_SIZE];
   int attr_types[src_nAttrs];
-
+  /*** copies attributes in src relation to a new one***/
   for (int i = 0; i < src_nAttrs; i++) {
     AttrCatEntry entry;
     AttrCacheTable::getAttrCatEntry(srcRelId, i, &entry);
@@ -69,7 +96,7 @@ int Algebra::select(char srcRel[ATTR_SIZE], char targetRel[ATTR_SIZE], char attr
   /*** select records and insert them into the target relation ***/
   RelCacheTable::resetSearchIndex(srcRelId);
   // (AttrCacheTable::resetSearchIndex is only needed once B+ trees exist, so it is omitted)
-
+  AttrCacheTable::resetSearchIndex(srcRelId, attr);
   Attribute record[src_nAttrs];
 
   while (BlockAccess::search(srcRelId, record, attr, attrVal, op) == SUCCESS) {
@@ -89,6 +116,32 @@ int Algebra::project(char srcRel[ATTR_SIZE], char targetRel[ATTR_SIZE]) {
   int srcRelId = OpenRelTable::getRelId(srcRel);
   if (srcRelId == E_RELNOTOPEN) {
     return E_RELNOTOPEN;
+  }
+    // target "null" means: print every record instead of creating a relation
+  if (strcmp(targetRel, "null") == 0) {
+    RelCatEntry srcEntry;
+    RelCacheTable::getRelCatEntry(srcRelId, &srcEntry);
+    int nAttrs = srcEntry.numAttrs;
+
+    int types[nAttrs];
+    for (int i = 0; i < nAttrs; i++) {
+      AttrCatEntry e;
+      AttrCacheTable::getAttrCatEntry(srcRelId, i, &e);
+      types[i] = e.attrType;
+      printf("%s%s", e.attrName, i < nAttrs - 1 ? " | " : "\n");
+    }
+
+    RelCacheTable::resetSearchIndex(srcRelId);
+
+    Attribute rec[nAttrs];
+    while (BlockAccess::project(srcRelId, rec) == SUCCESS) {
+      for (int i = 0; i < nAttrs; i++) {
+        if (types[i] == NUMBER) printf("%d", (int)rec[i].nVal);
+        else printf("%s", rec[i].sVal);
+        printf("%s", i < nAttrs - 1 ? " | " : "\n");
+      }
+    }
+    return SUCCESS;
   }
 
   RelCatEntry relCatEntry;
@@ -134,6 +187,7 @@ int Algebra::project(char srcRel[ATTR_SIZE], char targetRel[ATTR_SIZE]) {
   Schema::closeRel(targetRel);
   return SUCCESS;
 }
+
 int Algebra::project(char srcRel[ATTR_SIZE], char targetRel[ATTR_SIZE], int tar_nAttrs, char tar_Attrs[][ATTR_SIZE]) {
   int srcRelId = OpenRelTable::getRelId(srcRel);
   if (srcRelId == E_RELNOTOPEN) {
@@ -210,7 +264,7 @@ int Algebra::insert(char relName[ATTR_SIZE], int nAttrs, char record[][ATTR_SIZE
     // get the relation catalog entry from relation cache
     RelCatEntry relCatEntry;
     int retVal = RelCacheTable::getRelCatEntry(relId, &relCatEntry);
-    
+
     if (retVal != SUCCESS) {
         return retVal;
     }
@@ -230,7 +284,7 @@ int Algebra::insert(char relName[ATTR_SIZE], int nAttrs, char record[][ATTR_SIZE
         // get the attr-cat entry for the i'th attribute from the attr-cache
         AttrCatEntry attrCatEntry;
         retVal = AttrCacheTable::getAttrCatEntry(relId, i, &attrCatEntry);
-        
+
         if (retVal != SUCCESS) {
              return retVal;
         }

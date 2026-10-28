@@ -119,3 +119,12 @@ int StaticBuffer::setDirtyBit(int blockNum) {
 
     return SUCCESS;
 }
+int StaticBuffer::getStaticBlockType(int blockNum) {
+  // valid block numbers are 0 .. DISK_BLOCKS-1
+  if (blockNum < 0 || blockNum >= DISK_BLOCKS) {
+    return E_OUTOFBOUND;
+  }
+
+  // the block allocation map holds the type of every block
+  return (int)blockAllocMap[blockNum];
+}

@@ -1,6 +1,6 @@
 #include "BlockAccess.h"
 #include <cstring>
-
+#include "../BPlusTree/BPlusTree.h"
 RecId BlockAccess::linearSearch(int relId, char attrName[ATTR_SIZE], union Attribute attrVal, int op) {
     RecId prevRecId;
     RelCacheTable::getSearchIndex(relId, &prevRecId);
@@ -70,14 +70,35 @@ RecId BlockAccess::linearSearch(int relId, char attrName[ATTR_SIZE], union Attri
     return RecId{-1, -1};
 }
 int BlockAccess::search(int relId, Attribute *record, char attrName[ATTR_SIZE], Attribute attrVal, int op) {
-    RecId recId = BlockAccess::linearSearch(relId, attrName, attrVal, op);
+    RecId recId;
+
+    // attribute catalog entry of attrName, from the attribute cache
+    AttrCatEntry attrCatEntry;
+    int ret = AttrCacheTable::getAttrCatEntry(relId, attrName, &attrCatEntry);
+    if (ret != SUCCESS) {
+        return ret;   // E_OUTOFBOUND, E_RELNOTOPEN or E_ATTRNOTEXIST
+    }
+
+    int rootBlock = attrCatEntry.rootBlock;
+
+    if (rootBlock == -1) {
+        // no index on this attribute: linear search
+        recId = BlockAccess::linearSearch(relId, attrName, attrVal, op);
+    } else {
+        // index exists: B+ tree search
+        recId = BPlusTree::bPlusSearch(relId, attrName, attrVal, op);
+    }
 
     if (recId.block == -1 && recId.slot == -1) {
         return E_NOTFOUND;
     }
 
+    // copy the found record into the caller's buffer
     RecBuffer recBuffer(recId.block);
-    recBuffer.getRecord(record, recId.slot);
+    ret = recBuffer.getRecord(record, recId.slot);
+    if (ret != SUCCESS) {
+        return ret;
+    }
 
     return SUCCESS;
 }
@@ -325,9 +346,6 @@ int BlockAccess::insert(int relId, Attribute *record) {
 
         newBlock.setHeader(&head);
 
-        /*
-            Set block's slot map with all slots marked as free
-        */
         unsigned char slotMap[numOfSlots];
         for (int i = 0; i < numOfSlots; i++) {
             slotMap[i] = SLOT_UNOCCUPIED;
