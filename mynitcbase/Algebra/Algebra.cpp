@@ -96,7 +96,7 @@ int Algebra::select(char srcRel[ATTR_SIZE], char targetRel[ATTR_SIZE], char attr
   /*** select records and insert them into the target relation ***/
   RelCacheTable::resetSearchIndex(srcRelId);
   // (AttrCacheTable::resetSearchIndex is only needed once B+ trees exist, so it is omitted)
-  AttrCacheTable::resetSearchIndex(srcRelId, attr);
+  /*AttrCacheTable::resetSearchIndex(srcRelId, attr);
   Attribute record[src_nAttrs];
 
   while (BlockAccess::search(srcRelId, record, attr, attrVal, op) == SUCCESS) {
@@ -109,8 +109,28 @@ int Algebra::select(char srcRel[ATTR_SIZE], char targetRel[ATTR_SIZE], char attr
   }
 
   Schema::closeRel(targetRel);
+  return SUCCESS;*/
+
+    AttrCacheTable::resetSearchIndex(srcRelId, attr);
+  Attribute record[src_nAttrs];
+
+  numComparisons = 0;   // count only the comparisons made by the search itself
+
+  while (BlockAccess::search(srcRelId, record, attr, attrVal, op) == SUCCESS) {
+    ret = BlockAccess::insert(targetRelId, record);
+    if (ret != SUCCESS) {
+      Schema::closeRel(targetRel);
+      Schema::deleteRel(targetRel);
+      return ret;
+    }
+  }
+
+  printf("Number of comparisons: %lld\n", numComparisons);
+
+  Schema::closeRel(targetRel);
   return SUCCESS;
 }
+
 
 int Algebra::project(char srcRel[ATTR_SIZE], char targetRel[ATTR_SIZE]) {
   int srcRelId = OpenRelTable::getRelId(srcRel);

@@ -228,9 +228,10 @@ int RecBuffer::setSlotMap(unsigned char *slotMap) {
     ret = StaticBuffer::setDirtyBit(this->blockNum);
     return ret;
 }
-
+long long numComparisons = 0;
 // Compares two Attribute values
 int compareAttrs(union Attribute attr1, union Attribute attr2, int attrType) {
+  numComparisons++;
   double diff;
 
   if (attrType == NUMBER) {
@@ -317,11 +318,53 @@ int IndLeaf::getEntry(void *ptr, int indexNum) {
   return SUCCESS;
 }
 
-// placeholders: index modification is implemented in a later stage
 int IndInternal::setEntry(void *ptr, int indexNum) {
-  return 0;
+  if (indexNum < 0 || indexNum >= MAX_KEYS_INTERNAL) {
+    return E_OUTOFBOUND;
+  }
+
+  unsigned char *bufferPtr;
+  int ret = loadBlockAndGetBufferPtr(&bufferPtr);
+  if (ret != SUCCESS) {
+    return ret;
+  }
+
+  struct InternalEntry *internalEntry = (struct InternalEntry *)ptr;
+
+  // 20 bytes per entry: lChild (4) + key (16); rChild goes at offset 20,
+  // which is where the next entry's lChild starts
+  unsigned char *entryPtr = bufferPtr + HEADER_SIZE + (indexNum * 20);
+
+  memcpy(entryPtr, &(internalEntry->lChild), sizeof(int32_t));
+  memcpy(entryPtr + 4, &(internalEntry->attrVal), ATTR_SIZE);
+  memcpy(entryPtr + 20, &(internalEntry->rChild), sizeof(int32_t));
+
+  ret = StaticBuffer::setDirtyBit(this->blockNum);
+  if (ret != SUCCESS) {
+    return ret;
+  }
+
+  return SUCCESS;
 }
 
 int IndLeaf::setEntry(void *ptr, int indexNum) {
-  return 0;
+  if (indexNum < 0 || indexNum >= MAX_KEYS_LEAF) {
+    return E_OUTOFBOUND;
+  }
+
+  unsigned char *bufferPtr;
+  int ret = loadBlockAndGetBufferPtr(&bufferPtr);
+  if (ret != SUCCESS) {
+    return ret;
+  }
+
+  unsigned char *entryPtr = bufferPtr + HEADER_SIZE + (indexNum * LEAF_ENTRY_SIZE);
+  memcpy(entryPtr, (struct Index *)ptr, LEAF_ENTRY_SIZE);
+
+  ret = StaticBuffer::setDirtyBit(this->blockNum);
+  if (ret != SUCCESS) {
+    return ret;
+  }
+
+  return SUCCESS;
 }

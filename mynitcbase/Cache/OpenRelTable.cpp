@@ -197,7 +197,7 @@ int OpenRelTable::closeRel(int relId) {
         RelCatEntry relCatBuf = RelCacheTable::relCache[relId]->relCatEntry;
         union Attribute record[RELCAT_NO_ATTRS];
         RelCacheTable::relCatEntryToRecord(&relCatBuf, record);
-        
+
         RecId recId = RelCacheTable::relCache[relId]->recId;
         RecBuffer relCatBlock(recId.block);
         relCatBlock.setRecord(record, recId.slot);
@@ -209,6 +209,15 @@ int OpenRelTable::closeRel(int relId) {
     /****** Releasing the Attribute Cache entry of the relation ******/
     AttrCacheEntry* attrCacheNode = AttrCacheTable::attrCache[relId];
     while (attrCacheNode != nullptr) {
+        // write back a modified entry (for example, after an index changed rootBlock)
+        if (attrCacheNode->dirty) {
+            Attribute record[ATTRCAT_NO_ATTRS];
+            AttrCacheTable::attrCatEntryToRecord(&(attrCacheNode->attrCatEntry), record);
+
+            RecBuffer attrCatBlock(attrCacheNode->recId.block);
+            attrCatBlock.setRecord(record, attrCacheNode->recId.slot);
+        }
+
         AttrCacheEntry* nextNode = attrCacheNode->next;
         delete attrCacheNode;
         attrCacheNode = nextNode;

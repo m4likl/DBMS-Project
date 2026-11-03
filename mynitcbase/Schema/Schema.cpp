@@ -155,3 +155,45 @@ int Schema::deleteRel(char *relName) {
 
   return BlockAccess::deleteRelation(relName);
 }
+int Schema::createIndex(char relName[ATTR_SIZE], char attrName[ATTR_SIZE]) {
+  // the catalogs cannot be indexed
+  if (strcmp(relName, RELCAT_RELNAME) == 0 || strcmp(relName, ATTRCAT_RELNAME) == 0) {
+    return E_NOTPERMITTED;
+  }
+
+  int relId = OpenRelTable::getRelId(relName);
+  if (relId == E_RELNOTOPEN) {
+    return E_RELNOTOPEN;
+  }
+
+  return BPlusTree::bPlusCreate(relId, attrName);
+}
+
+int Schema::dropIndex(char *relName, char *attrName) {
+  if (strcmp(relName, RELCAT_RELNAME) == 0 || strcmp(relName, ATTRCAT_RELNAME) == 0) {
+    return E_NOTPERMITTED;
+  }
+
+  int relId = OpenRelTable::getRelId(relName);
+  if (relId == E_RELNOTOPEN) {
+    return E_RELNOTOPEN;
+  }
+
+  AttrCatEntry attrCatEntry;
+  if (AttrCacheTable::getAttrCatEntry(relId, attrName, &attrCatEntry) != SUCCESS) {
+    return E_ATTRNOTEXIST;
+  }
+
+  int rootBlock = attrCatEntry.rootBlock;
+  if (rootBlock == -1) {
+    return E_NOINDEX;
+  }
+
+  BPlusTree::bPlusDestroy(rootBlock);
+
+  // record that the attribute no longer has an index
+  attrCatEntry.rootBlock = -1;
+  AttrCacheTable::setAttrCatEntry(relId, attrName, &attrCatEntry);
+
+  return SUCCESS;
+}
