@@ -6,7 +6,7 @@
 #include "../Cache/RelCacheTable.h"
 #include "../Cache/AttrCacheTable.h"
 #include "../BlockAccess/BlockAccess.h"
-
+#include "../BPlusTree/BPlusTree.h"
 // Helper function to check if a string represents a valid number
 bool isNumber(char *str) {
     int len;
@@ -329,4 +329,132 @@ int Algebra::insert(char relName[ATTR_SIZE], int nAttrs, char record[][ATTR_SIZE
     retVal = BlockAccess::insert(relId, recordValues);
 
     return retVal;
+}
+int Algebra::join(char srcRelation1[ATTR_SIZE], char srcRelation2[ATTR_SIZE], char targetRelation[ATTR_SIZE], char attribute1[ATTR_SIZE], char attribute2[ATTR_SIZE]) {
+  int srcRelId1 = OpenRelTable::getRelId(srcRelation1);
+  int srcRelId2 = OpenRelTable::getRelId(srcRelation2);
+
+  if (srcRelId1 == E_RELNOTOPEN || srcRelId2 == E_RELNOTOPEN) {
+    return E_RELNOTOPEN;
+  }
+
+  // the join attributes must exist, one in each relation
+  AttrCatEntry attrCatEntry1, attrCatEntry2;
+  if (AttrCacheTable::getAttrCatEntry(srcRelId1, attribute1, &attrCatEntry1) != SUCCESS ||
+      AttrCacheTable::getAttrCatEntry(srcRelId2, attribute2, &attrCatEntry2) != SUCCESS) {
+    return E_ATTRNOTEXIST;
+  }
+
+  if (attrCatEntry1.attrType != attrCatEntry2.attrType) {
+    return E_ATTRTYPEMISMATCH;
+  }
+
+  RelCatEntry relCatEntry1, relCatEntry2;
+  RelCacheTable::getRelCatEntry(srcRelId1, &relCatEntry1);
+  RelCacheTable::getRelCatEntry(srcRelId2, &relCatEntry2);
+
+  int numOfAttributes1 = relCatEntry1.numAttrs;
+  int numOfAttributes2 = relCatEntry2.numAttrs;
+
+  // no two attributes may share a name, except the pair being joined on
+  for (int i = 0; i < numOfAttributes1; i++) {
+    AttrCatEntry a1;
+    AttrCacheTable::getAttrCatEntry(srcRelId1, i, &a1);
+
+    for (int j = 0; j < numOfAttributes2; j++) {
+      AttrCatEntry a2;
+      AttrCacheTable::getAttrCatEntry(srcRelId2, j, &a2);
+
+      if (i == attrCatEntry1.offset && j == attrCatEntry2.offset) {
+        continue;   // the join attributes themselves
+      }
+
+      if (strcmp(a1.attrName, a2.attrName) == 0) {
+        return E_DUPLICATEATTR;
+      }
+    }
+  }
+
+  // the inner relation needs an index on its join attribute
+  if (attrCatEntry2.rootBlock == -1) {
+    int ret = BPlusTree::bPlusCreate(srcRelId2, attribute2);
+    if (ret != SUCCESS) {
+      return ret;   // in practice only E_DISKFULL
+    }
+  }
+
+  // the target has every attribute of both relations except relation 2's join attribute
+  int numOfAttributesInTarget = numOfAttributes1 + numOfAttributes2 - 1;
+
+  char targetRelAttrNames[numOfAttributesInTarget][ATTR_SIZE];
+  int targetRelAttrTypes[numOfAttributesInTarget];
+
+  int k = 0;
+  for (int i = 0; i < numOfAttributes1; i++) {
+    AttrCatEntry a;
+    AttrCacheTable::getAttrCatEntry(srcRelId1, i, &a);
+    strcpy(targetRelAttrNames[k], a.attrName);
+    targetRelAttrTypes[k] = a.attrType;
+    k++;
+  }
+  for (int j = 0; j < numOfAttributes2; j++) {
+    if (j == attrCatEntry2.offset) {
+      continue;
+    }
+    AttrCatEntry a;
+    AttrCacheTable::getAttrCatEntry(srcRelId2, j, &a);
+    strcpy(targetRelAttrNames[k], a.attrName);
+    targetRelAttrTypes[k] = a.attrType;
+    k++;
+  }
+
+  int ret = Schema::createRel(targetRelation, numOfAttributesInTarget, targetRelAttrNames, targetRelAttrTypes);
+  if (ret != SUCCESS) {
+    return ret;
+  }
+
+  int targetRelId = OpenRelTable::openRel(targetRelation);
+  if (targetRelId < 0 || targetRelId >= MAX_OPEN) {
+    Schema::deleteRel(targetRelation);
+    return targetRelId;
+  }
+
+  Attribute record1[numOfAttributes1];
+  Attribute record2[numOfAttributes2];
+  Attribute targetRecord[numOfAttributesInTarget];
+
+  // start reading relation 1 from its first record
+  RelCacheTable::resetSearchIndex(srcRelId1);
+
+  // for every record of relation 1 ...
+  while (BlockAccess::project(srcRelId1, record1) == SUCCESS) {
+
+    // ... look up the matching records of relation 2 from the beginning
+    RelCacheTable::resetSearchIndex(srcRelId2);
+    AttrCacheTable::resetSearchIndex(srcRelId2, attribute2);
+
+    while (BlockAccess::search(srcRelId2, record2, attribute2, record1[attrCatEntry1.offset], EQ) == SUCCESS) {
+
+      // all of record1, then record2 without its join attribute
+      int t = 0;
+      for (int i = 0; i < numOfAttributes1; i++) {
+        targetRecord[t++] = record1[i];
+      }
+      for (int j = 0; j < numOfAttributes2; j++) {
+        if (j != attrCatEntry2.offset) {
+          targetRecord[t++] = record2[j];
+        }
+      }
+
+      ret = BlockAccess::insert(targetRelId, targetRecord);
+      if (ret != SUCCESS) {
+        OpenRelTable::closeRel(targetRelId);
+        Schema::deleteRel(targetRelation);
+        return E_DISKFULL;
+      }
+    }
+  }
+
+  OpenRelTable::closeRel(targetRelId);
+  return SUCCESS;
 }
